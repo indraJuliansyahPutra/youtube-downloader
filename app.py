@@ -4,22 +4,21 @@ import os
 import tempfile
 
 def list_formats(url):
-    ydl_opts = {}
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'listformats': True,
+    }
     with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        formats = info.get("formats", [])
-        format_str = ""
-        for f in formats:
-            format_id = f.get("format_id", "")
-            ext = f.get("ext", "")
-            res = f.get("resolution", f"{f.get('height', 'audio')}")
-            filesize = f.get("filesize", 0)
-            filesize_mb = f"{round(filesize / 1024 / 1024, 2)} MB" if filesize else "?"
-            format_str += f"{format_id} | {ext} | {res} | {filesize_mb}\n"
-        return format_str
+        result = ydl.extract_info(url, download=False)
+        formats = result.get("formats", [])
+        format_list = ""
+        for fmt in formats:
+            format_list += f"{fmt['format_id']} - {fmt['ext']} - {fmt.get('format_note', '')} - {fmt.get('resolution', '')}\n"
+        return format_list
 
 def download_video(url, mode, format_code=None):
-    temp_dir = tempfile.gettempdir()
+    temp_dir = tempfile.gettempdir()  # Folder sementara server
     output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
 
     if mode == "Best Video + Audio":
@@ -36,15 +35,17 @@ def download_video(url, mode, format_code=None):
         }
 
     with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-    
-    return temp_dir
+        info = ydl.extract_info(url)
+        filename = ydl.prepare_filename(info)
+
+    return filename  # Full file path (misalnya: /tmp/video_title.mp4)
 
 # ----------------------------
-# STREAMLIT GUI
+# STREAMLIT APP GUI
 # ----------------------------
+st.set_page_config(page_title="YouTube Downloader", page_icon="📽️")
 st.title("🎬 YouTube Video Downloader with yt-dlp")
-st.markdown("Gunakan yt-dlp untuk mendownload video dari YouTube.")
+st.markdown("Gunakan **yt-dlp** untuk mendownload video dari YouTube secara langsung.")
 
 video_url = st.text_input("📌 Masukkan URL YouTube:")
 
@@ -57,23 +58,44 @@ if video_url:
     if download_mode == "Pilih Format Manual":
         if st.button("🔍 Lihat Daftar Format"):
             with st.spinner("Mengambil daftar format..."):
-                format_list = list_formats(video_url)
-                st.text_area("🎞️ Daftar Format:", format_list, height=300)
+                try:
+                    format_list = list_formats(video_url)
+                    st.text_area("🎞️ Daftar Format:", format_list, height=300)
+                except Exception as e:
+                    st.error("Gagal mengambil format. Pastikan URL valid dan video dapat diakses.")
 
         format_code = st.text_input("🎯 Masukkan Format Code (contoh: 244):")
 
         if st.button("⬇️ Download Video"):
             if format_code:
                 with st.spinner("Mendownload video..."):
-                    path = download_video(video_url, download_mode, format_code)
-                st.success("✅ Video berhasil diunduh!")
-                st.write(f"📁 Disimpan di folder sementara: `{path}`")
+                    try:
+                        video_path = download_video(video_url, download_mode, format_code)
+                        st.success("✅ Video berhasil diunduh!")
+                        with open(video_path, "rb") as f:
+                            st.download_button(
+                                label="📥 Klik untuk menyimpan ke perangkat",
+                                data=f,
+                                file_name=os.path.basename(video_path),
+                                mime="video/mp4"
+                            )
+                    except Exception as e:
+                        st.error(f"Gagal mengunduh video: {e}")
             else:
                 st.warning("⚠️ Harap masukkan format code terlebih dahulu!")
 
     else:
         if st.button("⬇️ Download Best Quality"):
             with st.spinner("Mendownload video kualitas terbaik..."):
-                path = download_video(video_url, download_mode)
-            st.success("✅ Video berhasil diunduh!")
-            st.write(f"📁 Disimpan di folder sementara: `{path}`")
+                try:
+                    video_path = download_video(video_url, download_mode)
+                    st.success("✅ Video berhasil diunduh!")
+                    with open(video_path, "rb") as f:
+                        st.download_button(
+                            label="📥 Klik untuk menyimpan ke perangkat",
+                            data=f,
+                            file_name=os.path.basename(video_path),
+                            mime="video/mp4"
+                        )
+                except Exception as e:
+                    st.error(f"Gagal mengunduh video: {e}")
