@@ -1,35 +1,44 @@
 import streamlit as st
-import subprocess
+from yt_dlp import YoutubeDL
 import os
 import tempfile
 
 def list_formats(url):
-    result = subprocess.run(
-        ["yt-dlp", "-F", url],
-        capture_output=True, text=True
-    )
-    return result.stdout
+    ydl_opts = {}
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = info.get("formats", [])
+        format_str = ""
+        for f in formats:
+            format_id = f.get("format_id", "")
+            ext = f.get("ext", "")
+            res = f.get("resolution", f"{f.get('height', 'audio')}")
+            filesize = f.get("filesize", 0)
+            filesize_mb = f"{round(filesize / 1024 / 1024, 2)} MB" if filesize else "?"
+            format_str += f"{format_id} | {ext} | {res} | {filesize_mb}\n"
+        return format_str
 
 def download_video(url, mode, format_code=None):
-    save_folder = "Downloaded_Videos"
-    os.makedirs(save_folder, exist_ok=True)
-    output_path = os.path.join(save_folder, "%(title)s.%(ext)s")
+    temp_dir = tempfile.gettempdir()
+    output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
 
     if mode == "Best Video + Audio":
-        cmd = [
-            "yt-dlp", "-f", "bv*+ba/best", 
-            "--merge-output-format", "mp4", 
-            "-o", output_path, url
-        ]
+        ydl_opts = {
+            'format': 'bv*+ba/best',
+            'merge_output_format': 'mp4',
+            'outtmpl': output_path
+        }
     else:
-        cmd = [
-            "yt-dlp", "-f", f"{format_code}+bestaudio", 
-            "--merge-output-format", "mp4", 
-            "-o", output_path, url
-        ]
+        ydl_opts = {
+            'format': f'{format_code}+bestaudio',
+            'merge_output_format': 'mp4',
+            'outtmpl': output_path
+        }
 
-    subprocess.run(cmd)
-    return save_folder
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    
+    return temp_dir
 
 # ----------------------------
 # STREAMLIT GUI
@@ -58,7 +67,7 @@ if video_url:
                 with st.spinner("Mendownload video..."):
                     path = download_video(video_url, download_mode, format_code)
                 st.success("✅ Video berhasil diunduh!")
-                st.write(f"📁 Disimpan di folder: `{path}`")
+                st.write(f"📁 Disimpan di folder sementara: `{path}`")
             else:
                 st.warning("⚠️ Harap masukkan format code terlebih dahulu!")
 
@@ -67,4 +76,4 @@ if video_url:
             with st.spinner("Mendownload video kualitas terbaik..."):
                 path = download_video(video_url, download_mode)
             st.success("✅ Video berhasil diunduh!")
-            st.write(f"📁 Disimpan di folder: `{path}`")
+            st.write(f"📁 Disimpan di folder sementara: `{path}`")
