@@ -11,19 +11,23 @@ def list_formats(url):
     return result.stdout
 
 def download_video(url, mode, format_code=None):
-    temp_dir = tempfile.mkdtemp()  # folder sementara untuk tiap user
+    temp_dir = tempfile.mkdtemp()
     output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
-
+    
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    
     if mode == "Best Video + Audio":
         cmd = [
             "yt-dlp", "-f", "bv*+ba/best",
             "--merge-output-format", "mp4",
+            "--user-agent", user_agent,
             "-o", output_path, url
         ]
     else:
         cmd = [
             "yt-dlp", "-f", f"{format_code}+bestaudio",
             "--merge-output-format", "mp4",
+            "--user-agent", user_agent,
             "-o", output_path, url
         ]
 
@@ -32,12 +36,12 @@ def download_video(url, mode, format_code=None):
     if result.returncode != 0:
         raise RuntimeError(result.stderr)
 
-    # Cari file mp4 yang telah diunduh
     for file in os.listdir(temp_dir):
         if file.endswith(".mp4"):
             return os.path.join(temp_dir, file)
 
     raise FileNotFoundError("File mp4 tidak ditemukan setelah download.")
+
 
 # ----------------------------
 # STREAMLIT GUI
